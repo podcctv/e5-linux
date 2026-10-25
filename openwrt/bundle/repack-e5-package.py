@@ -8,6 +8,7 @@ payload with files from this checkout and records all supplied input hashes.
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 from pathlib import Path
 import runpy
@@ -55,13 +56,15 @@ def make_tar(source, destination):
             info = archive.gettarinfo(str(path), arcname=relative)
             info.uid = info.gid = 0
             info.uname = info.gname = 'root'
-            if path.is_file() and path.read_bytes()[:2] == b'#!':
+            data = path.read_bytes() if path.is_file() else None
+            if data is not None and data[:2] == b'#!':
                 info.mode = 0o755
-            elif path.is_file():
+                data = data.replace(b'\r\n', b'\n')
+            elif data is not None:
                 info.mode = 0o644
-            if path.is_file() and not path.is_symlink():
-                with path.open('rb') as stream:
-                    archive.addfile(info, stream)
+            if data is not None and not path.is_symlink():
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
             else:
                 archive.addfile(info)
 
