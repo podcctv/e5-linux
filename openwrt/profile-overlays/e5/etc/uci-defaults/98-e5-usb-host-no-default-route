@@ -1,0 +1,14 @@
+#!/bin/sh
+# The USB NCM adapter is a management link. It must not become the Windows
+# host's default route or DNS source; hotspot clients still use dhcp.lan.
+[ "$(uci -q get dhcp.usb_host.tag)" = usbhost ] || exit 0
+for option in $(uci -q get dhcp.usb_host.dhcp_option); do
+	case "$option" in
+		3|3,*|6|6,*|121|121,*|249|249,*)
+			uci -q del_list dhcp.usb_host.dhcp_option="$option" || exit 1
+			;;
+	esac
+done
+uci -q commit dhcp || exit 1
+/etc/init.d/dnsmasq reload >/dev/null 2>&1 || true
+exit 0

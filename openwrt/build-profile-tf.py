@@ -37,6 +37,64 @@ def run(*args, **kwargs):
     subprocess.run([str(x) for x in args], check=True, **kwargs)
 
 
+def copy_tree(source, destination):
+    """Copy a repository-owned overlay without following directory symlinks."""
+    source, destination = Path(source), Path(destination)
+    copied = []
+    for path in sorted(source.rglob('*')):
+        relative = path.relative_to(source)
+        target = destination / relative
+        if path.is_dir() and not path.is_symlink():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            target.unlink(missing_ok=True)
+            target.symlink_to(os.readlink(path), target_is_directory=path.is_dir())
+        else:
+            shutil.copy2(path, target)
+        copied.append(relative.as_posix())
+    return copied
+
+
+def apply_profile_overlay(root, profile):
+    overlay = TOP / 'openwrt/profile-overlays' / profile
+    if not overlay.is_dir():
+        return []
+    return copy_tree(overlay, root)
+
+
+def stage_openclash(root, apk, core):
+    """Stage optional OpenClash artifacts; installation is deferred to first boot.
+
+    LuCI packages must be installed by apk on the target so their dependency
+    scripts run against the target's package database, not the build host.
+    """
+    if not apk and not core:
+        return None
+    if apk is None:
+        raise ValueError('--openclash-core requires --openclash-apk')
+    apk, core = Path(apk), Path(core) if core else None
+    if not apk.is_file():
+        raise ValueError('OpenClash APK does not exist: ' + str(apk))
+    packages = root / 'etc/e5/packages'
+    packages.mkdir(parents=True, exist_ok=True)
+    apk_target = packages / 'luci-app-openclash.apk'
+    shutil.copy2(apk, apk_target)
+    manifest = {'apk_sha256': digest(apk_target), 'apk_source': apk.name}
+    if core:
+        if not core.is_file():
+            raise ValueError('OpenClash core does not exist: ' + str(core))
+        core_target = root / 'etc/openclash/core/clash_meta'
+        core_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(core, core_target)
+        core_target.chmod(0o755)
+        manifest.update(core_sha256=digest(core_target), core_source=core.name)
+    (root / 'etc/e5/openclash-manifest.json').write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+    return manifest
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--profile', choices=MODELS, required=True)
@@ -44,6 +102,10 @@ def main():
         p.add_argument('--' + name, type=Path, required=True)
     p.add_argument('--apk-image', default='e5-openwrt-base:25.12.5')
     p.add_argument('--wifi-apks', type=Path, default=TOP / 'work/wifi-sae')
+    p.add_argument('--openclash-apk', type=Path,
+                   help='official OpenClash APK to bundle for first-boot installation')
+    p.add_argument('--openclash-core', type=Path,
+                   help='optional arm64 mihomo core to bundle with OpenClash')
     p.add_argument('--cc', default='aarch64-linux-gnu-gcc')
     a = p.parse_args()
     runpy.run_path(str(TOP / 'openwrt/bundle/flash.py'))['validate_installer_busybox'](a.busybox)
@@ -115,6 +177,8 @@ def main():
         'ln -sf ../init.d/ttyd /target/etc/rc.d/S99ttyd && '
         'ln -sf ../init.d/ttyd /target/etc/rc.d/K50ttyd')
     runpy.run_path(str(TOP / 'device/openwrt_device_common/shared/network-startup.py'))['patch_root'](root, a.profile)
+    overlay_files = apply_profile_overlay(root, a.profile)
+    openclash = stage_openclash(root, a.openclash_apk, a.openclash_core)
     # The SMS forward signs DingTalk webhooks with the openssl CLI and sends SMTP
     # through msmtp; the clean base carries the backend files without the packages.
     # (downloads.openwrt.org interrupts mid-index often enough that the same
@@ -208,6 +272,8 @@ def main():
             'compiled_helpers': helpers,
             'modemmanager_sha256': digest(root / 'usr/sbin/ModemManager'),
             'modemmanager_packages': modem_build['apks'],
+            'profile_overlay_files': overlay_files,
+            'openclash': openclash,
             'sources': sources, 'source_revisions': source_revisions}
     for dest in (root / 'etc/e5/build.json', files / 'BUILD.json'):
         dest.write_text(json.dumps(info, ensure_ascii=False, indent=2) + '\n')

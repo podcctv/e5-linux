@@ -1,0 +1,10 @@
+#!/bin/sh
+# E5/Rongyue profile. B28 is the 700 MHz LTE band used by China Broadnet.
+# NR candidates remain capability-driven: the modem reports n28/n41/n78 when
+# supported, while the persisted default uses the measured stable n41+n78
+# lock. Do not turn an unlocked NR profile into a CP RF assertion.
+if command -v uci >/dev/null 2>&1 && uci -q get unisoc_modem.main >/dev/null 2>&1; then
+	uci -q set unisoc_modem.main.lte_supported_bands='1,3,5,8,28,34,38,39,40,41'
+	uci -q commit unisoc_modem
+fi
+exit 0

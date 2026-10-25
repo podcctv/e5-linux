@@ -1,0 +1,22 @@
+#!/bin/sh /etc/rc.common
+START=99
+
+start() {
+	[ -f /etc/e5/openclash-installed ] && return 0
+	[ -f /etc/e5/packages/luci-app-openclash.apk ] || return 0
+	[ -d /tmp/e5-openclash-install.lock ] && return 0
+	mkdir /tmp/e5-openclash-install.lock 2>/dev/null || return 0
+	(
+		sleep 15
+		i=0
+		while [ "$i" -lt 12 ]; do
+			if /usr/libexec/e5-install-openclash; then
+				rmdir /tmp/e5-openclash-install.lock 2>/dev/null || true
+				exit 0
+			fi
+			i=$((i + 1))
+			sleep 30
+		done
+		rmdir /tmp/e5-openclash-install.lock 2>/dev/null || true
+	) >/tmp/e5-openclash-install.log 2>&1 &
+}

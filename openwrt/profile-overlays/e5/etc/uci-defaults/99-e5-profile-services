@@ -1,0 +1,11 @@
+#!/bin/sh
+for path in \
+	/etc/uci-defaults/97-e5-broadnet-profile \
+	/etc/uci-defaults/98-e5-usb-host-no-default-route \
+	/etc/init.d/e5-openclash-install \
+	/usr/libexec/e5-install-openclash; do
+	[ -e "$path" ] && chmod 755 "$path"
+done
+[ -x /etc/init.d/e5-openclash-install ] && \
+	/etc/init.d/e5-openclash-install enable >/dev/null 2>&1 || true
+exit 0
