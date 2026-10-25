@@ -42,6 +42,8 @@ def copy_tree(source, destination):
     source, destination = Path(source), Path(destination)
     copied = []
     for path in sorted(source.rglob('*')):
+        if '__pycache__' in path.parts or path.suffix == '.pyc':
+            continue
         relative = path.relative_to(source)
         target = destination / relative
         if path.is_dir() and not path.is_symlink():

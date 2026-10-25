@@ -30,6 +30,8 @@ def digest(path):
 def copy_overlay(source, destination):
     copied = []
     for path in sorted(Path(source).rglob('*')):
+        if '__pycache__' in path.parts or path.suffix == '.pyc':
+            continue
         relative = path.relative_to(source)
         target = Path(destination) / relative
         if path.is_dir() and not path.is_symlink():
