@@ -89,6 +89,18 @@ def main():
     shutil.copytree(base, package)
     with tempfile.TemporaryDirectory(prefix='e5-fork-overlay-') as temp:
         hotfix = Path(temp)
+        # Keep the installer-owned USB bridge and device helper files from the
+        # tested base payload.  The fork overlay below replaces only the
+        # modem/profile files that it owns.
+        with tarfile.open(base / 'files/e5-hotfix.tar') as source:
+            source.extractall(hotfix)
+        for relative in (
+                'etc/init.d/e5-modem-startup',
+                'etc/rc.d/S24e5-modem-startup',
+                'usr/libexec/e5-modem-startup'):
+            path = hotfix / relative
+            if path.is_symlink() or path.is_file():
+                path.unlink()
         overlay_files = copy_overlay(TOP / 'openwrt/profile-overlays/e5', hotfix)
         apk_target = hotfix / 'etc/e5/packages/luci-app-openclash.apk'
         apk_target.parent.mkdir(parents=True, exist_ok=True)

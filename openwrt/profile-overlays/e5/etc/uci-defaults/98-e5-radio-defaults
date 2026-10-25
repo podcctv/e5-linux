@@ -1,0 +1,14 @@
+#!/bin/sh
+# Permission bridge for the Windows TF installer.  The previous temporary
+# hotfix also enabled a separate modem-startup service; the shared boot-replay
+# path now owns modem activation, so do not create a competing SFUN sequence.
+chmod 755 \
+	/etc/uci-defaults/97-e5-broadnet-profile \
+	/etc/uci-defaults/98-e5-usb-host-no-default-route \
+	/etc/uci-defaults/99-e5-lan-no-default-route \
+	/etc/uci-defaults/99-e5-profile-services \
+	/etc/init.d/e5-openclash-install \
+	/usr/libexec/e5-install-openclash \
+	/usr/libexec/unisoc-modem/lock-control 2>/dev/null || true
+ln -sf ../init.d/e5-openclash-install /etc/rc.d/S99e5-openclash-install 2>/dev/null || true
+exit 0
