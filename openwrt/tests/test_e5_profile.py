@@ -21,6 +21,9 @@ class E5Profile(unittest.TestCase):
     def test_b28_and_safe_default_lock_are_explicit(self):
         modem = (OVERLAY / 'etc/config/unisoc_modem').read_text()
         self.assertIn("lte_supported_bands '1,3,5,8,28,34,38,39,40,41'", modem)
+        lock = (OVERLAY / 'usr/libexec/unisoc-modem/lock-control').read_text()
+        self.assertIn("AUTO_WORK_MODE = cfg('auto_work_mode', '152'", lock)
+        self.assertIn("ENDC_MODES = {'5g4g', 'nsa', 'auto-nsa', '4g-nsa', 'sa-nsa'}", lock)
         self.assertEqual((OVERLAY / 'etc/unisoc-modem/lock-state.d/sim0/lte').read_text().strip(), '1,41')
         self.assertEqual((OVERLAY / 'etc/unisoc-modem/lock-state.d/sim0/nr').read_text().strip(), '41,78')
         self.assertNotIn('n28', (OVERLAY / 'etc/unisoc-modem/lock-state.d/sim0/nr').read_text())
